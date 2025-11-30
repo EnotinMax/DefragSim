@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Disk Defragmentation Simulator</title>
+    <link rel="icon" href="https://cdn.iconscout.com/icon/premium/png-256-thumb/defrag-icon-svg-download-png-7852586.png">
+    <style>
+        @font-face { font-family: 'Fixedsys'; src: url('https://unpkg.com/fixedsys-excelsior@1.0.0/FSEX300.ttf') format('truetype'); }
+        
+        :root {
+            --bg: #c0c0c0; --text: #000; --header-bg: #000080; --header-text: #fff;
+            --border: #808080; --border-light: #dfdfdf; --progress: #000080; --desktop: #008080;
+        }
+        
+        :root.dark-theme {
+            --bg: #000; --text: #00ff00; --header-bg: #00ff00; --header-text: #000;
+            --border: #00ff00; --border-light: #00ff00; --progress: #00ff00; --desktop: #000;
+        }
+        
+        body {
+            background: var(--desktop); color: var(--text); font-family: 'Fixedsys', monospace;
+            margin: 0; padding: 0; display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; transition: background-color 0.3s;
+        }
+        
+        #terminal {
+            width: 640px; height: 480px; border: 2px solid; padding: 0; background: var(--bg);
+            border-top-color: var(--border-light); border-left-color: var(--border-light);
+            border-right-color: var(--border); border-bottom-color: var(--border);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3); display: flex; flex-direction: column;
+            position: relative; resize: both; overflow: auto; transition: all 0.3s;
+        }
+        
+        #terminal.fullscreen { width: 100vw !important; height: 100vh !important; resize: none; }
+        
+        #header {
+            background: var(--header-bg); color: var(--header-text); padding: 3px 8px;
+            font-weight: bold; font-size: 13px; height: 18px; display: flex;
+            justify-content: space-between; align-items: center; transition: all 0.3s;
+        }
+        
+        .window-controls { display: flex; gap: 2px; }
+        
+        .window-control {
+            width: 16px; height: 14px; background: var(--bg); border: 1px solid;
+            border-top-color: var(--border-light); border-left-color: var(--border-light);
+            border-right-color: var(--border); border-bottom-color: var(--border);
+            display: flex; align-items: center; justify-content: center; font-size: 10px;
+            cursor: pointer; color: var(--text); transition: all 0.3s;
+        }
+        
+        .window-control:active { border: 1px inset; }
+        
+        #content { flex: 1; padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        
+        #disk-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        
+        #disk-map-container {
+            flex: 1; border: 2px inset; border-color: var(--border); background: #fff;
+            overflow: hidden; display: flex; transition: border-color 0.3s;
+        }
+        
+        .dark-theme #disk-map-container { background: #000; }
+        
+        #disk-map {
+            width: 100%; height: 100%; display: grid; font-family: 'Fixedsys', monospace;
+            font-weight: normal; line-height: 1;
+        }
+        
+        .cell { 
+            display: flex; align-items: center; justify-content: center; font-size: 10px;
+            padding: 0; margin: 0; min-width: 0; min-height: 0;
+        }
+        
+        .occupied { color: #000; background: #c0c0c0; }
+        .reading { color: #fff; background: #000080; }
+        .writing { color: #fff; background: #800000; }
+        .fixed { color: #000; background: #808080; }
+        .bad { color: #fff; background: #ff0000; }
+        .empty { color: #000; background: #00ff00; }
+        
+        #progress-container {
+            border: 2px inset; border-color: var(--border); background: #fff;
+            padding: 2px; margin: 6px 0; position: relative; transition: border-color 0.3s;
+        }
+        
+        .dark-theme #progress-container { background: #000; }
+        
+        #progress-bar {
+            height: 14px; background: var(--progress); width: 0%;
+            transition: width 0.1s, background-color 0.3s;
+        }
+        
+        #progress-bar.zen-mode {
+            background: linear-gradient(90deg, var(--progress), #0080ff, var(--progress));
+            background-size: 200% 100%; animation: zen-progress 2s infinite linear;
+        }
+        
+        @keyframes zen-progress {
+            0% { background-position: 0% 0%; } 100% { background-position: 200% 0%; }
+        }
+        
+        .status-row {
+            display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;
+        }
+        
+        .button-row { display: flex; margin-top: 8px; flex-wrap: wrap; gap: 6px; }
+        
+        button {
+            background: var(--bg); color: var(--text); border: 2px outset;
+            border-top-color: var(--border-light); border-left-color: var(--border-light);
+            border-right-color: var(--border); border-bottom-color: var(--border);
+            padding: 2px 10px; font-family: 'Fixedsys', monospace; font-size: 11px;
+            cursor: pointer; min-width: 70px; height: 22px; transition: all 0.3s;
+        }
+        
+        button:hover { filter: brightness(1.2); }
+        button:active { border: 2px inset; }
+        button.zen-active { background: var(--header-bg); color: var(--header-text); }
+        
+        #legend {
+            display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; 
+            font-size: 10px; border-top: 1px solid var(--border); padding-top: 6px;
+        }
+        
+        .legend-item {
+            display: flex; align-items: center; gap: 4px;
+        }
+        
+        .legend-color {
+            width: 12px; height: 12px; border: 1px solid var(--text);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 8px; font-weight: bold;
+        }
+        
+        #settings-modal {
+            display: none; position: absolute; top: 50%; left: 50%; width: 320px;
+            transform: translate(-50%, -50%); background: var(--bg); z-index: 100;
+            border: 2px solid; border-top-color: var(--border-light); border-left-color: var(--border-light);
+            border-right-color: var(--border); border-bottom-color: var(--border);
+            box-shadow: 3px 3px 5px rgba(0,0,0,0.5); transition: all 0.3s;
+        }
+        
+        #settings-header {
+            background: var(--header-bg); color: var(--header-text); padding: 4px 8px;
+            font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        #settings-content { padding: 12px; }
+        
+        .slider-container { display: flex; align-items: center; margin-bottom: 10px; font-size: 11px; }
+        .slider-label { width: 140px; }
+        .slider { flex: 1; height: 12px; -webkit-appearance: none; background: #fff; border: 1px inset; }
+        .dark-theme .slider { background: #333; }
+        .slider-value { width: 30px; text-align: right; margin-left: 8px; }
+        
+        .radio-group { margin: 15px 0; }
+        .radio-label { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; cursor: pointer; }
+        .radio-input { margin-right: 6px; }
+        
+        .checkbox-container { display: flex; align-items: center; font-size: 11px; margin: 15px 0; }
+        .checkbox {
+            width: 12px; height: 12px; border: 1px inset; background: #fff; margin-right: 6px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .dark-theme .checkbox { background: #333; }
+        .checkbox.checked:after { content: '✓'; font-size: 10px; }
+        
+        .modal-buttons { display: flex; justify-content: flex-end; margin-top: 15px; gap: 6px; }
+        
+        #overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); z-index: 50;
+        }
+        
+        .close-btn {
+            background: none; border: none; color: var(--header-text); font-size: 14px;
+            cursor: pointer; padding: 0; width: 16px; height: 16px; display: flex;
+            align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal">
+        <div id="header">
+            <span id="header-title">▐ Disk Defragmentation Simulator v3.1</span>
+            <div class="window-controls">
+                <div class="window-control" onclick="toggleLanguage()" id="lang-btn">ru</div>
+                <div class="window-control" onclick="toggleTheme()" id="theme-btn">🌙</div>
+                <div class="window-control" onclick="toggleFullscreen()">□</div>
+            </div>
+        </div>
+        
+        <div id="content">
+            <div id="disk-container">
+                <div id="disk-title">Disk status (<span id="disk-size-label">1024</span> blocks):</div>
+                <div id="disk-map-container"><div id="disk-map"></div></div>
+            </div>
+            
+            <div id="progress-title">Defragmentation progress:</div>
+            <div id="progress-container"><div id="progress-bar"></div></div>
+            
+            <div class="status-row">
+                <div>Status: <span id="status-text">Waiting for start</span></div>
+                <div>Processed: <span id="processed">0</span> of <span id="total-blocks">1024</span> blocks</div>
+                <div>Fragmentation: <span id="fragmentation">100</span>%</div>
+            </div>
+            
+            <div id="legend">
+                <!-- Legend items will be generated by JavaScript -->
+            </div>
+            
+            <div class="button-row">
+                <button onclick="startDefrag()">▶ Start</button>
+                <button onclick="pauseDefrag()">❚❚ Pause</button>
+                <button onclick="resetSimulation()">↻ Reset</button>
+                <button onclick="toggleZenMode()" id="zen-btn">☯ Zen</button>
+                <button onclick="openSettings()">⚙ Settings</button>
+            </div>
+        </div>
+        
+        <div id="overlay" onclick="closeSettings()"></div>
+        <div id="settings-modal">
+            <div id="settings-header">
+                <span id="settings-title">Disk Settings</span>
+                <button class="close-btn" onclick="closeSettings()">×</button>
+            </div>
+            <div id="settings-content">
+                <div class="radio-group">
+                    <div style="margin-bottom: 8px; font-weight: bold;">Disk size:</div>
+                    <label class="radio-label"><input type="radio" name="diskSize" value="1024" class="radio-input" checked> 1024 blocks (64×16)</label>
+                    <label class="radio-label"><input type="radio" name="diskSize" value="2048" class="radio-input"> 2048 blocks (80×26)</label>
+                    <label class="radio-label"><input type="radio" name="diskSize" value="4096" class="radio-input"> 4096 blocks (100×41)</label>
+                    <label class="radio-label"><input type="radio" name="diskSize" value="8192" class="radio-input"> 8192 blocks (128×64)</label>
+                    <label class="radio-label"><input type="radio" name="diskSize" value="16384" class="radio-input"> 16384 blocks (128×128)</label>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label" id="fixed-label">Fixed blocks:</div>
+                    <input type="range" min="0" max="20" value="10" class="slider" id="fixedSlider">
+                    <div class="slider-value" id="fixedValue">10%</div>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label" id="bad-label">Bad sectors:</div>
+                    <input type="range" min="0" max="5" value="1" class="slider" id="badSlider">
+                    <div class="slider-value" id="badValue">1%</div>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label" id="occupied-label">Occupied space:</div>
+                    <input type="range" min="5" max="99" value="75" class="slider" id="occupiedSlider">
+                    <div class="slider-value" id="occupiedValue">75%</div>
+                </div>
+                
+                <div class="checkbox-container">
+                    <div class="checkbox" id="fastCheckbox"></div>
+                    <div id="fast-label">Fast defragmentation (10 sec)</div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button onclick="applySettings()" id="apply-btn">Apply</button>
+                    <button onclick="randomizeSettings()" id="random-btn">Random</button>
+                    <button onclick="closeSettings()" id="close-btn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== КОНФИГУРАЦИЯ =====
+        const diskSizes = {
+            1024: { cols: 64, rows: 16 },
+            2048: { cols: 80, rows: 26 },
+            4096: { cols: 100, rows: 41 },
+            8192: { cols: 128, rows: 64 },
+            16384: { cols: 128, rows: 128 }
+        };
+        
+        const translations = {
+            en: {
+                title: "Disk Defragmentation Simulator v3.1",
+                diskStatus: "Disk status",
+                blocks: "blocks",
+                progress: "Defragmentation progress:",
+                status: "Status:",
+                waiting: "Waiting for start",
+                processing: "Processing...",
+                defragmenting: "Defragmenting...",
+                zenDefrag: "Zen defragmentation...",
+                creatingFrag: "Creating light fragmentation...",
+                paused: "Paused",
+                stopped: "Stopped",
+                completed: "Defragmentation completed",
+                processed: "Processed:",
+                fragmentation: "Fragmentation:",
+                start: "▶ Start",
+                pause: "❚❚ Pause",
+                reset: "↻ Reset",
+                zen: "☯ Zen",
+                settings: "⚙ Settings",
+                settingsTitle: "Disk Settings",
+                diskSize: "Disk size:",
+                fixedBlocks: "Fixed blocks:",
+                badSectors: "Bad sectors:",
+                occupiedSpace: "Occupied space:",
+                fastDefrag: "Fast defragmentation (10 sec)",
+                apply: "Apply",
+                random: "Random",
+                close: "Close",
+                legend: "Legend:",
+                occupied: "Occupied",
+                reading: "Reading",
+                writing: "Writing",
+                fixed: "Fixed",
+                bad: "Bad sector",
+                empty: "Free space"
+            },
+            ru: {
+                title: "Симулятор дефрагментации DOS v3.1",
+                diskStatus: "Состояние диска",
+                blocks: "блоков",
+                progress: "Прогресс дефрагментации:",
+                status: "Состояние:",
+                waiting: "Ожидание запуска",
+                processing: "Обработка...",
+                defragmenting: "Дефрагментация...",
+                zenDefrag: "Дзен-дефрагментация...",
+                creatingFrag: "Создание лёгкой фрагментации...",
+                paused: "Пауза",
+                stopped: "Остановлено",
+                completed: "Дефрагментация завершена",
+                processed: "Обработано:",
+                fragmentation: "Фрагментация:",
+                start: "▶ Запуск",
+                pause: "❚❚ Пауза",
+                reset: "↻ Сброс",
+                zen: "☯ Дзен",
+                settings: "⚙ Настройки",
+                settingsTitle: "Настройки диска",
+                diskSize: "Объём диска:",
+                fixedBlocks: "Повреждённые блоки:",
+                badSectors: "Плохие сектора:",
+                occupiedSpace: "Занятое пространство:",
+                fastDefrag: "Быстрая дефрагментация (10 сек)",
+                apply: "Применить",
+                random: "Случайно",
+                close: "Закрыть",
+                legend: "Легенда:",
+                occupied: "Занято",
+                reading: "Чтение",
+                writing: "Запись",
+                fixed: "Неперемещаемый",
+                bad: "Плохой сектор",
+                empty: "Свободно"
+            }
+        };
+
+        // ===== ПЕРЕМЕННЫЕ СОСТОЯНИЯ =====
+        let DISK_SIZE = 1024, COLS = 64, ROWS = 16;
+        let disk = [], isRunning = false, isPaused = false, processedBlocks = 0;
+        let startTime = 0, totalMoveOperations = 0, currentMoveOperations = 0;
+        let zenMode = false, isFullscreen = false, isDarkTheme = false, currentLang = 'en';
+        
+        let settings = {
+            fixedPercent: 10, badPercent: 1, occupiedPercent: 75, 
+            fastMode: false, diskSize: 1024
+        };
+
+        // ===== ОСНОВНЫЕ ФУНКЦИИ =====
+        function initializeDisk() {
+            const fixedBlocks = Math.floor(DISK_SIZE * settings.fixedPercent / 100);
+            const badBlocks = Math.floor(DISK_SIZE * settings.badPercent / 100);
+            const occupiedBlocks = Math.floor(DISK_SIZE * settings.occupiedPercent / 100);
+            const emptyBlocks = DISK_SIZE - fixedBlocks - badBlocks - occupiedBlocks;
+            
+            disk = new Array(DISK_SIZE);
+            let index = 0;
+            
+            for (let i = 0; i < fixedBlocks; i++) disk[index++] = 'X';
+            for (let i = 0; i < badBlocks; i++) disk[index++] = 'b';
+            for (let i = 0; i < occupiedBlocks; i++) disk[index++] = '.';
+            for (let i = 0; i < emptyBlocks; i++) disk[index++] = ' ';
+            
+            shuffleArray(disk);
+            updateDisplay();
+            updateStats();
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function updateDiskSize(size) {
+            DISK_SIZE = size;
+            const diskConfig = diskSizes[size];
+            COLS = diskConfig.cols;
+            ROWS = diskConfig.rows;
+            
+            document.getElementById('disk-size-label').textContent = DISK_SIZE;
+            document.getElementById('total-blocks').textContent = DISK_SIZE;
+            
+            const diskMap = document.getElementById('disk-map');
+            diskMap.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+            diskMap.style.gridTemplateRows = `repeat(${ROWS}, 1fr)`;
+            
+            initializeDisk();
+        }
+
+        // ===== ФУНКЦИИ ИНТЕРФЕЙСА =====
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ru' : 'en';
+            updateLanguage();
+        }
+
+        function updateLanguage() {
+            const t = translations[currentLang];
+            document.getElementById('lang-btn').textContent = currentLang === 'en' ? 'ru' : 'en';
+            document.getElementById('header-title').textContent = t.title;
+            document.getElementById('disk-title').innerHTML = `${t.diskStatus} (<span id="disk-size-label">${DISK_SIZE}</span> ${t.blocks}):`;
+            document.getElementById('progress-title').textContent = t.progress;
+            document.getElementById('status-text').textContent = t.waiting;
+            document.getElementById('processed').textContent = '0';
+            document.querySelector('.status-row div:nth-child(1)').innerHTML = `${t.status} <span id="status-text">${t.waiting}</span>`;
+            document.querySelector('.status-row div:nth-child(2)').innerHTML = `${t.processed} <span id="processed">0</span> of <span id="total-blocks">${DISK_SIZE}</span> ${t.blocks}`;
+            document.querySelector('.status-row div:nth-child(3)').innerHTML = `${t.fragmentation} <span id="fragmentation">100</span>%`;
+            
+            document.querySelector('button[onclick="startDefrag()"]').textContent = t.start;
+            document.querySelector('button[onclick="pauseDefrag()"]').textContent = t.pause;
+            document.querySelector('button[onclick="resetSimulation()"]').textContent = t.reset;
+            document.getElementById('zen-btn').textContent = t.zen;
+            document.querySelector('button[onclick="openSettings()"]').textContent = t.settings;
+            
+            document.getElementById('settings-title').textContent = t.settingsTitle;
+            document.querySelector('.radio-group div').textContent = t.diskSize;
+            document.getElementById('fixed-label').textContent = t.fixedBlocks;
+            document.getElementById('bad-label').textContent = t.badSectors;
+            document.getElementById('occupied-label').textContent = t.occupiedSpace;
+            document.getElementById('fast-label').textContent = t.fastDefrag;
+            document.getElementById('apply-btn').textContent = t.apply;
+            document.getElementById('random-btn').textContent = t.random;
+            document.getElementById('close-btn').textContent = t.close;
+            
+            updateLegend();
+        }
+
+        function updateLegend() {
+            const t = translations[currentLang];
+            const legend = document.getElementById('legend');
+            legend.innerHTML = '';
+            
+            // Add legend title
+            const legendTitle = document.createElement('div');
+            legendTitle.textContent = t.legend;
+            legendTitle.style.marginRight = '10px';
+            legend.appendChild(legendTitle);
+            
+            // Legend items
+            const legendItems = [
+                { class: 'occupied', symbol: '.', text: t.occupied },
+                { class: 'reading', symbol: 'r', text: t.reading },
+                { class: 'writing', symbol: 'w', text: t.writing },
+                { class: 'fixed', symbol: 'X', text: t.fixed },
+                { class: 'bad', symbol: 'b', text: t.bad },
+                { class: 'empty', symbol: ' ', text: t.empty }
+            ];
+            
+            legendItems.forEach(item => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = `legend-color ${item.class}`;
+                colorBox.textContent = item.symbol;
+                
+                const text = document.createElement('span');
+                text.textContent = item.text;
+                
+                legendItem.appendChild(colorBox);
+                legendItem.appendChild(text);
+                legend.appendChild(legendItem);
+            });
+        }
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            const themeButton = document.getElementById('theme-btn');
+            
+            if (isDarkTheme) {
+                document.documentElement.classList.add('dark-theme');
+                themeButton.textContent = '☀️';
+            } else {
+                document.documentElement.classList.remove('dark-theme');
+                themeButton.textContent = '🌙';
+            }
+        }
+
+        function toggleFullscreen() {
+            const terminal = document.getElementById('terminal');
+            terminal.classList.toggle('fullscreen');
+            isFullscreen = !isFullscreen;
+        }
+
+        function toggleZenMode() {
+            zenMode = !zenMode;
+            const zenBtn = document.getElementById('zen-btn');
+            const t = translations[currentLang];
+            
+            if (zenMode) {
+                zenBtn.classList.add('zen-active');
+                document.getElementById('status-text').textContent = t.zenDefrag;
+                document.getElementById('progress-bar').classList.add('zen-mode');
+                document.getElementById('progress-bar').style.width = '100%';
+                if (!isRunning) startDefrag();
+            } else {
+                zenBtn.classList.remove('zen-active');
+                document.getElementById('progress-bar').classList.remove('zen-mode');
+                if (isRunning) {
+                    isRunning = false;
+                    document.getElementById('status-text').textContent = t.stopped;
+                }
+            }
+            updateStats();
+        }
+
+        // ===== ФУНКЦИИ ДЕФРАГМЕНТАЦИИ =====
+        async function defragment() {
+            isRunning = true; isPaused = false; processedBlocks = 0; startTime = Date.now();
+            const t = translations[currentLang];
+            
+            if (!zenMode) {
+                totalMoveOperations = countMoveOperations();
+                currentMoveOperations = 0;
+            }
+            
+            document.getElementById('status-text').textContent = zenMode ? t.zenDefrag : t.defragmenting;
+            
+            let freeIndex = 0;
+            while (freeIndex < DISK_SIZE && disk[freeIndex] !== ' ') freeIndex++;
+            
+            let fragments = [];
+            for (let i = freeIndex; i < DISK_SIZE; i++) {
+                if (disk[i] === '.') fragments.push(i);
+            }
+            
+            shuffleArray(fragments);
+            
+            for (let i = 0; i < fragments.length && isRunning; i++) {
+                if (isPaused) {
+                    await new Promise(resolve => {
+                        const checkPause = setInterval(() => {
+                            if (!isPaused || !isRunning) {
+                                clearInterval(checkPause);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                    if (!isRunning) break;
+                }
+                
+                const fragmentIndex = fragments[i];
+                if (fragmentIndex === freeIndex) {
+                    freeIndex++;
+                    while (freeIndex < DISK_SIZE && (disk[freeIndex] !== ' ' && disk[freeIndex] !== 'r' && disk[freeIndex] !== 'w')) {
+                        freeIndex++;
+                    }
+                    processedBlocks++;
+                    if (!zenMode) updateStats();
+                    continue;
+                }
+                
+                if (!zenMode) currentMoveOperations++;
+                
+                const elapsedTime = Date.now() - startTime;
+                let totalTime = zenMode ? (settings.fastMode ? 5000 : 30000) : (settings.fastMode ? 10000 : 120000);
+                let delay = zenMode ? Math.max(5, Math.min(500, totalTime / fragments.length / 3)) : 
+                            Math.max(10, Math.min(1000, (totalTime - elapsedTime) / (totalMoveOperations - currentMoveOperations) / 3));
+                
+                disk[fragmentIndex] = 'r'; updateDisplay(); await delayAsync(delay);
+                disk[freeIndex] = 'w'; updateDisplay(); await delayAsync(delay);
+                disk[freeIndex] = '.'; disk[fragmentIndex] = ' '; updateDisplay();
+                processedBlocks++; if (!zenMode) updateStats(); await delayAsync(delay);
+                
+                freeIndex++;
+                while (freeIndex < DISK_SIZE && (disk[freeIndex] !== ' ' && disk[freeIndex] !== 'r' && disk[freeIndex] !== 'w')) {
+                    freeIndex++;
+                }
+            }
+            
+            if (isRunning) {
+                if (zenMode) {
+                    document.getElementById('status-text').textContent = t.creatingFrag;
+                    await delayAsync(1000);
+                    createLightFragmentation();
+                    await delayAsync(500);
+                    defragment();
+                } else {
+                    document.getElementById('status-text').textContent = t.completed;
+                    isRunning = false; isPaused = false;
+                }
+            } else {
+                document.getElementById('status-text').textContent = t.stopped;
+                isRunning = false; isPaused = false;
+            }
+        }
+
+        function delayAsync(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+        function countMoveOperations() {
+            let moves = 0, freeIndex = 0;
+            while (freeIndex < DISK_SIZE && (disk[freeIndex] !== ' ' && disk[freeIndex] !== 'r' && disk[freeIndex] !== 'w')) {
+                freeIndex++;
+            }
+            
+            for (let i = freeIndex; i < DISK_SIZE; i++) {
+                if (disk[i] === '.' && i > freeIndex) {
+                    moves++;
+                    freeIndex++;
+                    while (freeIndex < DISK_SIZE && (disk[freeIndex] !== ' ' && disk[freeIndex] !== 'r' && disk[freeIndex] !== 'w')) {
+                        freeIndex++;
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function createLightFragmentation() {
+            const occupiedIndices = [], freeIndices = [];
+            for (let i = 0; i < DISK_SIZE; i++) {
+                if (disk[i] === '.') occupiedIndices.push(i);
+                else if (disk[i] === ' ') freeIndices.push(i);
+            }
+            
+            shuffleArray(occupiedIndices);
+            const shuffleCount = Math.max(1, Math.floor(occupiedIndices.length * (0.1 + Math.random() * 0.2)));
+            
+            for (let i = 0; i < shuffleCount && freeIndices.length > 0; i++) {
+                const occupiedIndex = occupiedIndices[i];
+                const freeIndex = freeIndices.pop();
+                disk[occupiedIndex] = ' ';
+                disk[freeIndex] = '.';
+            }
+            updateDisplay();
+        }
+
+        function startDefrag() {
+            if (!isRunning) defragment();
+            else if (isPaused) {
+                isPaused = false;
+                document.getElementById('status-text').textContent = 
+                    zenMode ? translations[currentLang].zenDefrag : translations[currentLang].defragmenting;
+            }
+        }
+
+        function pauseDefrag() {
+            if (isRunning && !isPaused) {
+                isPaused = true;
+                document.getElementById('status-text').textContent = translations[currentLang].paused;
+            }
+        }
+
+        function resetSimulation() {
+            isRunning = false; isPaused = false;
+            setTimeout(() => {
+                initializeDisk();
+                processedBlocks = 0;
+                document.getElementById('status-text').textContent = translations[currentLang].waiting;
+                updateStats();
+            }, 100);
+        }
+
+        // ===== ФУНКЦИИ ОТОБРАЖЕНИЯ =====
+        function updateDisplay() {
+            const diskMap = document.getElementById('disk-map');
+            diskMap.innerHTML = '';
+            
+            for (let i = 0; i < DISK_SIZE; i++) {
+                const cell = disk[i];
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                
+                switch(cell) {
+                    case '.': cellElement.classList.add('occupied'); break;
+                    case 'r': cellElement.classList.add('reading'); break;
+                    case 'w': cellElement.classList.add('writing'); break;
+                    case 'X': cellElement.classList.add('fixed'); break;
+                    case 'b': cellElement.classList.add('bad'); break;
+                    default: cellElement.classList.add('empty');
+                }
+                
+                cellElement.textContent = cell;
+                diskMap.appendChild(cellElement);
+            }
+        }
+
+        function updateStats() {
+            if (zenMode) {
+                document.getElementById('fragmentation').textContent = '∞';
+                document.getElementById('processed').textContent = 'NaN';
+                return;
+            }
+            
+            let occupied = 0, fragments = 0, lastWasEmpty = true;
+            for (let i = 0; i < DISK_SIZE; i++) {
+                if (disk[i] === '.') {
+                    occupied++;
+                    if (lastWasEmpty) fragments++;
+                    lastWasEmpty = false;
+                } else if (disk[i] === ' ') {
+                    lastWasEmpty = true;
+                }
+            }
+            
+            const fragmentation = occupied > 0 ? Math.round((fragments / occupied) * 100) : 0;
+            document.getElementById('fragmentation').textContent = fragmentation;
+            document.getElementById('processed').textContent = processedBlocks;
+            document.getElementById('progress-bar').style.width = Math.round((processedBlocks / DISK_SIZE) * 100) + '%';
+        }
+
+        // ===== ФУНКЦИИ НАСТРОЕК =====
+        function openSettings() {
+            if (isRunning) return;
+            document.getElementById('fixedSlider').value = settings.fixedPercent;
+            document.getElementById('badSlider').value = settings.badPercent;
+            document.getElementById('occupiedSlider').value = settings.occupiedPercent;
+            
+            const diskSizeRadios = document.getElementsByName('diskSize');
+            for (let radio of diskSizeRadios) {
+                radio.checked = parseInt(radio.value) === settings.diskSize;
+            }
+            
+            const checkbox = document.getElementById('fastCheckbox');
+            settings.fastMode ? checkbox.classList.add('checked') : checkbox.classList.remove('checked');
+            
+            updateSliderValues();
+            document.getElementById('settings-modal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function applySettings() {
+            settings.fixedPercent = parseInt(document.getElementById('fixedSlider').value);
+            settings.badPercent = parseInt(document.getElementById('badSlider').value);
+            settings.occupiedPercent = parseInt(document.getElementById('occupiedSlider').value);
+            settings.fastMode = document.getElementById('fastCheckbox').classList.contains('checked');
+            
+            const diskSizeRadios = document.getElementsByName('diskSize');
+            for (let radio of diskSizeRadios) {
+                if (radio.checked) {
+                    settings.diskSize = parseInt(radio.value);
+                    break;
+                }
+            }
+            
+            updateDiskSize(settings.diskSize);
+            closeSettings();
+        }
+
+        function randomizeSettings() {
+            document.getElementById('fixedSlider').value = Math.floor(Math.random() * 21);
+            document.getElementById('badSlider').value = Math.floor(Math.random() * 6);
+            document.getElementById('occupiedSlider').value = Math.floor(Math.random() * 95) + 5;
+            
+            const sizes = [1024, 2048, 4096, 8192, 16384];
+            const randomSize = sizes[Math.floor(Math.random() * sizes.length)];
+            const diskSizeRadios = document.getElementsByName('diskSize');
+            for (let radio of diskSizeRadios) {
+                radio.checked = parseInt(radio.value) === randomSize;
+            }
+            
+            const checkbox = document.getElementById('fastCheckbox');
+            Math.random() > 0.5 ? checkbox.classList.add('checked') : checkbox.classList.remove('checked');
+            
+            updateSliderValues();
+        }
+
+        function updateSliderValues() {
+            document.getElementById('fixedValue').textContent = document.getElementById('fixedSlider').value + '%';
+            document.getElementById('badValue').textContent = document.getElementById('badSlider').value + '%';
+            document.getElementById('occupiedValue').textContent = document.getElementById('occupiedSlider').value + '%';
+        }
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        document.getElementById('fixedSlider').addEventListener('input', updateSliderValues);
+        document.getElementById('badSlider').addEventListener('input', updateSliderValues);
+        document.getElementById('occupiedSlider').addEventListener('input', updateSliderValues);
+        document.getElementById('fastCheckbox').addEventListener('click', function() {
+            this.classList.toggle('checked');
+        });
+
+        window.onload = function() {
+            updateSliderValues();
+            updateDiskSize(settings.diskSize);
+            updateLanguage();
+        };
+    </script>
+</body>
+</html>
