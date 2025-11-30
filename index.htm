@@ -6,21 +6,45 @@
     <link rel="icon" href="https://cdn.iconscout.com/icon/premium/png-256-thumb/defrag-icon-svg-download-png-7852586.png">
     <style>
         @font-face { font-family: 'Fixedsys'; src: url('https://unpkg.com/fixedsys-excelsior@1.0.0/FSEX300.ttf') format('truetype'); }
+        @font-face { font-family: 'Perfect DOS VGA 437'; src: url('https://unpkg.com/dos-font@1.0.0/dist/Perfect DOS VGA 437 Win.ttf') format('truetype'); }
         
         :root {
             --bg: #c0c0c0; --text: #000; --header-bg: #000080; --header-text: #fff;
             --border: #808080; --border-light: #dfdfdf; --progress: #000080; --desktop: #008080;
+            --font: 'Fixedsys', monospace;
+            --occupied-bg: #c0c0c0; --occupied-text: #000;
+            --reading-bg: #000080; --reading-text: #fff;
+            --writing-bg: #800000; --writing-text: #fff;
+            --fixed-bg: #808080; --fixed-text: #000;
+            --bad-bg: #ff0000; --bad-text: #fff;
+            --empty-bg: #00ff00; --empty-text: #000;
+            --active-color: #000080;
         }
         
         :root.dark-theme {
             --bg: #000; --text: #00ff00; --header-bg: #00ff00; --header-text: #000;
             --border: #00ff00; --border-light: #00ff00; --progress: #00ff00; --desktop: #000;
+            --font: 'Fixedsys', monospace;
+            --active-color: #00ff00;
+        }
+        
+        :root.retro-theme {
+            --bg: #584cf8; --text: #fff; --header-bg: #fff; --header-text: #000;
+            --border: #fff; --border-light: #fff; --progress: #f9ff52; --desktop: #584cf8;
+            --font: 'Perfect DOS VGA 437', 'Courier New', monospace;
+            --occupied-bg: #f9ff52; --occupied-text: #000;
+            --reading-bg: #fff; --reading-text: #000;
+            --writing-bg: #fff; --writing-text: #000;
+            --fixed-bg: #fff; --fixed-text: #000;
+            --bad-bg: #fff; --bad-text: #000;
+            --empty-bg: #fff; --empty-text: #000;
+            --active-color: #f9ff52;
         }
         
         body {
-            background: var(--desktop); color: var(--text); font-family: 'Fixedsys', monospace;
+            background: var(--desktop); color: var(--text); font-family: var(--font);
             margin: 0; padding: 0; display: flex; justify-content: center; align-items: center;
-            height: 100vh; overflow: hidden; transition: background-color 0.3s;
+            height: 100vh; overflow: hidden; transition: all 0.3s;
         }
         
         #terminal {
@@ -37,6 +61,7 @@
             background: var(--header-bg); color: var(--header-text); padding: 3px 8px;
             font-weight: bold; font-size: 13px; height: 18px; display: flex;
             justify-content: space-between; align-items: center; transition: all 0.3s;
+            font-family: var(--font);
         }
         
         .window-controls { display: flex; gap: 2px; }
@@ -46,24 +71,29 @@
             border-top-color: var(--border-light); border-left-color: var(--border-light);
             border-right-color: var(--border); border-bottom-color: var(--border);
             display: flex; align-items: center; justify-content: center; font-size: 10px;
-            cursor: pointer; color: var(--text); transition: all 0.3s;
+            cursor: pointer; color: var(--text); transition: all 0.3s; font-family: var(--font);
         }
         
         .window-control:active { border: 1px inset; }
         
-        #content { flex: 1; padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        #content {
+            flex: 1; padding: 8px; display: flex; flex-direction: column; overflow: hidden;
+            font-family: var(--font); color: var(--text); transition: all 0.3s;
+        }
         
         #disk-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        
+        #disk-title { margin-bottom: 6px; font-size: 12px; font-family: var(--font); color: var(--text); }
         
         #disk-map-container {
             flex: 1; border: 2px inset; border-color: var(--border); background: #fff;
             overflow: hidden; display: flex; transition: border-color 0.3s;
         }
         
-        .dark-theme #disk-map-container { background: #000; }
+        .dark-theme #disk-map-container, .retro-theme #disk-map-container { background: #000; }
         
         #disk-map {
-            width: 100%; height: 100%; display: grid; font-family: 'Fixedsys', monospace;
+            width: 100%; height: 100%; display: grid; font-family: var(--font);
             font-weight: normal; line-height: 1;
         }
         
@@ -72,19 +102,19 @@
             padding: 0; margin: 0; min-width: 0; min-height: 0;
         }
         
-        .occupied { color: #000; background: #c0c0c0; }
-        .reading { color: #fff; background: #000080; }
-        .writing { color: #fff; background: #800000; }
-        .fixed { color: #000; background: #808080; }
-        .bad { color: #fff; background: #ff0000; }
-        .empty { color: #000; background: #00ff00; }
+        .occupied { color: var(--occupied-text); background: var(--occupied-bg); }
+        .reading { color: var(--reading-text); background: var(--reading-bg); }
+        .writing { color: var(--writing-text); background: var(--writing-bg); }
+        .fixed { color: var(--fixed-text); background: var(--fixed-bg); }
+        .bad { color: var(--bad-text); background: var(--bad-bg); }
+        .empty { color: var(--empty-text); background: var(--empty-bg); }
         
         #progress-container {
             border: 2px inset; border-color: var(--border); background: #fff;
             padding: 2px; margin: 6px 0; position: relative; transition: border-color 0.3s;
         }
         
-        .dark-theme #progress-container { background: #000; }
+        .dark-theme #progress-container, .retro-theme #progress-container { background: #000; }
         
         #progress-bar {
             height: 14px; background: var(--progress); width: 0%;
@@ -102,6 +132,7 @@
         
         .status-row {
             display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;
+            font-family: var(--font); color: var(--text);
         }
         
         .button-row { display: flex; margin-top: 8px; flex-wrap: wrap; gap: 6px; }
@@ -110,48 +141,62 @@
             background: var(--bg); color: var(--text); border: 2px outset;
             border-top-color: var(--border-light); border-left-color: var(--border-light);
             border-right-color: var(--border); border-bottom-color: var(--border);
-            padding: 2px 10px; font-family: 'Fixedsys', monospace; font-size: 11px;
+            padding: 2px 10px; font-family: var(--font); font-size: 11px;
             cursor: pointer; min-width: 70px; height: 22px; transition: all 0.3s;
         }
         
         button:hover { filter: brightness(1.2); }
         button:active { border: 2px inset; }
-        button.zen-active { background: var(--header-bg); color: var(--header-text); }
+        button.zen-active, button.theme-active { background: var(--active-color); color: var(--header-text); }
         
+        /* Status bar */
+        #status-bar {
+            border-top: 1px solid var(--border); padding: 2px 8px; 
+            display: flex; justify-content: space-between; font-size: 11px;
+            background: var(--bg); color: var(--text); font-family: var(--font);
+        }
+        
+        #operation-status { font-style: italic; }
+        
+        .theme-buttons { display: flex; gap: 4px; }
+        .theme-btn { 
+            padding: 1px 6px; font-size: 10px; cursor: pointer;
+            background: var(--bg); color: var(--text); border: 1px solid var(--border);
+        }
+        
+        /* Legend */
         #legend {
-            display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; 
-            font-size: 10px; border-top: 1px solid var(--border); padding-top: 6px;
+            display: flex; gap: 12px; margin-top: 8px; font-size: 10px;
+            flex-wrap: wrap; font-family: var(--font); color: var(--text);
         }
         
-        .legend-item {
-            display: flex; align-items: center; gap: 4px;
-        }
-        
+        .legend-item { display: flex; align-items: center; gap: 4px; }
         .legend-color {
-            width: 12px; height: 12px; border: 1px solid var(--text);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 8px; font-weight: bold;
+            width: 12px; height: 12px; border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center; font-size: 8px;
         }
         
+        /* Modal */
         #settings-modal {
             display: none; position: absolute; top: 50%; left: 50%; width: 320px;
             transform: translate(-50%, -50%); background: var(--bg); z-index: 100;
             border: 2px solid; border-top-color: var(--border-light); border-left-color: var(--border-light);
             border-right-color: var(--border); border-bottom-color: var(--border);
-            box-shadow: 3px 3px 5px rgba(0,0,0,0.5); transition: all 0.3s;
+            box-shadow: 3px 3px 5px rgba(0,0,0,0.5); transition: all 0.3s; font-family: var(--font);
         }
         
         #settings-header {
             background: var(--header-bg); color: var(--header-text); padding: 4px 8px;
             font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+            font-family: var(--font);
         }
         
-        #settings-content { padding: 12px; }
+        #settings-content { padding: 12px; color: var(--text); }
         
         .slider-container { display: flex; align-items: center; margin-bottom: 10px; font-size: 11px; }
         .slider-label { width: 140px; }
         .slider { flex: 1; height: 12px; -webkit-appearance: none; background: #fff; border: 1px inset; }
-        .dark-theme .slider { background: #333; }
+        .dark-theme .slider, .retro-theme .slider { background: #333; }
         .slider-value { width: 30px; text-align: right; margin-left: 8px; }
         
         .radio-group { margin: 15px 0; }
@@ -163,7 +208,7 @@
             width: 12px; height: 12px; border: 1px inset; background: #fff; margin-right: 6px;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
-        .dark-theme .checkbox { background: #333; }
+        .dark-theme .checkbox, .retro-theme .checkbox { background: #333; }
         .checkbox.checked:after { content: '✓'; font-size: 10px; }
         
         .modal-buttons { display: flex; justify-content: flex-end; margin-top: 15px; gap: 6px; }
@@ -176,7 +221,7 @@
         .close-btn {
             background: none; border: none; color: var(--header-text); font-size: 14px;
             cursor: pointer; padding: 0; width: 16px; height: 16px; display: flex;
-            align-items: center; justify-content: center;
+            align-items: center; justify-content: center; font-family: var(--font);
         }
     </style>
 </head>
@@ -186,7 +231,6 @@
             <span id="header-title">▐ Disk Defragmentation Simulator v3.1</span>
             <div class="window-controls">
                 <div class="window-control" onclick="toggleLanguage()" id="lang-btn">ru</div>
-                <div class="window-control" onclick="toggleTheme()" id="theme-btn">🌙</div>
                 <div class="window-control" onclick="toggleFullscreen()">□</div>
             </div>
         </div>
@@ -195,6 +239,16 @@
             <div id="disk-container">
                 <div id="disk-title">Disk status (<span id="disk-size-label">1024</span> blocks):</div>
                 <div id="disk-map-container"><div id="disk-map"></div></div>
+            </div>
+            
+            <!-- Legend -->
+            <div id="legend">
+                <div class="legend-item"><div class="legend-color occupied">.</div><div id="legend-occupied">Occupied</div></div>
+                <div class="legend-item"><div class="legend-color reading">r</div><div id="legend-reading">Reading</div></div>
+                <div class="legend-item"><div class="legend-color writing">w</div><div id="legend-writing">Writing</div></div>
+                <div class="legend-item"><div class="legend-color fixed">X</div><div id="legend-fixed">Fixed</div></div>
+                <div class="legend-item"><div class="legend-color bad">b</div><div id="legend-bad">Bad</div></div>
+                <div class="legend-item"><div class="legend-color empty"></div><div id="legend-empty">Empty</div></div>
             </div>
             
             <div id="progress-title">Defragmentation progress:</div>
@@ -206,10 +260,6 @@
                 <div>Fragmentation: <span id="fragmentation">100</span>%</div>
             </div>
             
-            <div id="legend">
-                <!-- Legend items will be generated by JavaScript -->
-            </div>
-            
             <div class="button-row">
                 <button onclick="startDefrag()">▶ Start</button>
                 <button onclick="pauseDefrag()">❚❚ Pause</button>
@@ -219,6 +269,17 @@
             </div>
         </div>
         
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <div id="operation-status"></div>
+            <div class="theme-buttons">
+                <button class="theme-btn theme-active" onclick="setTheme('classic')" id="theme-classic">Classic</button>
+                <button class="theme-btn" onclick="setTheme('dark')" id="theme-dark">Dark</button>
+                <button class="theme-btn" onclick="setTheme('retro')" id="theme-retro">Retro</button>
+            </div>
+        </div>
+        
+        <!-- Settings Modal -->
         <div id="overlay" onclick="closeSettings()"></div>
         <div id="settings-modal">
             <div id="settings-header">
@@ -308,13 +369,10 @@
                 apply: "Apply",
                 random: "Random",
                 close: "Close",
-                legend: "Legend:",
+                reading: "Reading...",
+                writing: "Writing...",
                 occupied: "Occupied",
-                reading: "Reading",
-                writing: "Writing",
-                fixed: "Fixed",
-                bad: "Bad sector",
-                empty: "Free space"
+                empty: "Empty"
             },
             ru: {
                 title: "Симулятор дефрагментации DOS v3.1",
@@ -346,13 +404,10 @@
                 apply: "Применить",
                 random: "Случайно",
                 close: "Закрыть",
-                legend: "Легенда:",
+                reading: "Чтение...",
+                writing: "Запись...",
                 occupied: "Занято",
-                reading: "Чтение",
-                writing: "Запись",
-                fixed: "Неперемещаемый",
-                bad: "Плохой сектор",
-                empty: "Свободно"
+                empty: "Пусто"
             }
         };
 
@@ -360,7 +415,7 @@
         let DISK_SIZE = 1024, COLS = 64, ROWS = 16;
         let disk = [], isRunning = false, isPaused = false, processedBlocks = 0;
         let startTime = 0, totalMoveOperations = 0, currentMoveOperations = 0;
-        let zenMode = false, isFullscreen = false, isDarkTheme = false, currentLang = 'en';
+        let zenMode = false, isFullscreen = false, currentLang = 'en', currentTheme = 'classic';
         
         let settings = {
             fixedPercent: 10, badPercent: 1, occupiedPercent: 75, 
@@ -410,7 +465,7 @@
             initializeDisk();
         }
 
-        // ===== ФУНКЦИИ ИНТЕРФЕЙСА =====
+        // ФУНКЦИИ ИНТЕРФЕЙСА 
         function toggleLanguage() {
             currentLang = currentLang === 'en' ? 'ru' : 'en';
             updateLanguage();
@@ -444,58 +499,34 @@
             document.getElementById('random-btn').textContent = t.random;
             document.getElementById('close-btn').textContent = t.close;
             
-            updateLegend();
+            // Update legend
+            document.getElementById('legend-occupied').textContent = t.occupied;
+            document.getElementById('legend-reading').textContent = translations.en.reading;
+            document.getElementById('legend-writing').textContent = translations.en.writing;
+            document.getElementById('legend-fixed').textContent = translations.en.fixed;
+            document.getElementById('legend-bad').textContent = translations.en.bad;
+            document.getElementById('legend-empty').textContent = t.empty;
         }
 
-        function updateLegend() {
+        function setTheme(theme) {
+            currentTheme = theme;
+            document.documentElement.className = theme === 'classic' ? '' : 
+                                              theme === 'dark' ? 'dark-theme' : 'retro-theme';
+            
+            // Кнопки темы
+            document.getElementById('theme-classic').classList.toggle('theme-active', theme === 'classic');
+            document.getElementById('theme-dark').classList.toggle('theme-active', theme === 'dark');
+            document.getElementById('theme-retro').classList.toggle('theme-active', theme === 'retro');
+        }
+
+        function updateOperationStatus(status) {
             const t = translations[currentLang];
-            const legend = document.getElementById('legend');
-            legend.innerHTML = '';
+            let statusText = '';
             
-            // Add legend title
-            const legendTitle = document.createElement('div');
-            legendTitle.textContent = t.legend;
-            legendTitle.style.marginRight = '10px';
-            legend.appendChild(legendTitle);
+            if (status === 'reading') statusText = t.reading;
+            else if (status === 'writing') statusText = t.writing;
             
-            // Legend items
-            const legendItems = [
-                { class: 'occupied', symbol: '.', text: t.occupied },
-                { class: 'reading', symbol: 'r', text: t.reading },
-                { class: 'writing', symbol: 'w', text: t.writing },
-                { class: 'fixed', symbol: 'X', text: t.fixed },
-                { class: 'bad', symbol: 'b', text: t.bad },
-                { class: 'empty', symbol: ' ', text: t.empty }
-            ];
-            
-            legendItems.forEach(item => {
-                const legendItem = document.createElement('div');
-                legendItem.className = 'legend-item';
-                
-                const colorBox = document.createElement('div');
-                colorBox.className = `legend-color ${item.class}`;
-                colorBox.textContent = item.symbol;
-                
-                const text = document.createElement('span');
-                text.textContent = item.text;
-                
-                legendItem.appendChild(colorBox);
-                legendItem.appendChild(text);
-                legend.appendChild(legendItem);
-            });
-        }
-
-        function toggleTheme() {
-            isDarkTheme = !isDarkTheme;
-            const themeButton = document.getElementById('theme-btn');
-            
-            if (isDarkTheme) {
-                document.documentElement.classList.add('dark-theme');
-                themeButton.textContent = '☀️';
-            } else {
-                document.documentElement.classList.remove('dark-theme');
-                themeButton.textContent = '🌙';
-            }
+            document.getElementById('operation-status').textContent = statusText;
         }
 
         function toggleFullscreen() {
@@ -526,7 +557,7 @@
             updateStats();
         }
 
-        // ===== ФУНКЦИИ ДЕФРАГМЕНТАЦИИ =====
+        // ФУНКЦИИ ДЕФРАГМЕНТАЦИИ
         async function defragment() {
             isRunning = true; isPaused = false; processedBlocks = 0; startTime = Date.now();
             const t = translations[currentLang];
@@ -579,8 +610,16 @@
                 let delay = zenMode ? Math.max(5, Math.min(500, totalTime / fragments.length / 3)) : 
                             Math.max(10, Math.min(1000, (totalTime - elapsedTime) / (totalMoveOperations - currentMoveOperations) / 3));
                 
+                // ФАЗА ЧТЕНИЯ
+                updateOperationStatus('reading');
                 disk[fragmentIndex] = 'r'; updateDisplay(); await delayAsync(delay);
+                
+                // ФАЗА ЗАПИСИ  
+                updateOperationStatus('writing');
                 disk[freeIndex] = 'w'; updateDisplay(); await delayAsync(delay);
+                
+                // ФАЗА ПЕРЕМЕЩЕНИЯ
+                updateOperationStatus('');
                 disk[freeIndex] = '.'; disk[fragmentIndex] = ' '; updateDisplay();
                 processedBlocks++; if (!zenMode) updateStats(); await delayAsync(delay);
                 
@@ -605,6 +644,7 @@
                 document.getElementById('status-text').textContent = t.stopped;
                 isRunning = false; isPaused = false;
             }
+            updateOperationStatus('');
         }
 
         function delayAsync(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -669,10 +709,11 @@
                 processedBlocks = 0;
                 document.getElementById('status-text').textContent = translations[currentLang].waiting;
                 updateStats();
+                updateOperationStatus('');
             }, 100);
         }
 
-        // ===== ФУНКЦИИ ОТОБРАЖЕНИЯ =====
+        // ФУНКЦИИ ОТОБРАЖЕНИЯ 
         function updateDisplay() {
             const diskMap = document.getElementById('disk-map');
             diskMap.innerHTML = '';
@@ -720,7 +761,7 @@
             document.getElementById('progress-bar').style.width = Math.round((processedBlocks / DISK_SIZE) * 100) + '%';
         }
 
-        // ===== ФУНКЦИИ НАСТРОЕК =====
+        // ФУНКЦИИ НАСТРОЕК 
         function openSettings() {
             if (isRunning) return;
             document.getElementById('fixedSlider').value = settings.fixedPercent;
@@ -787,7 +828,7 @@
             document.getElementById('occupiedValue').textContent = document.getElementById('occupiedSlider').value + '%';
         }
 
-        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        // ИНИЦИАЛИЗАЦИЯ
         document.getElementById('fixedSlider').addEventListener('input', updateSliderValues);
         document.getElementById('badSlider').addEventListener('input', updateSliderValues);
         document.getElementById('occupiedSlider').addEventListener('input', updateSliderValues);
@@ -799,6 +840,7 @@
             updateSliderValues();
             updateDiskSize(settings.diskSize);
             updateLanguage();
+            setTheme('classic');
         };
     </script>
 </body>
